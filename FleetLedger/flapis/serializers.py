@@ -11,13 +11,11 @@ class VehicleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehicle
         fields = ['id', 'vin', 'plate_number', 'model_year', 'status', 'current_mileage']
-
+        
 class DriverSerializer(serializers.ModelSerializer):
-    user_details = UserSerializer(source='user', read_only=True)
-
     class Meta:
         model = Driver
-        fields = ['id', 'user', 'user_details', 'license_number', 'base_salary', 'commission_rate', 'joining_date']
+        fields = ['id','first_name','last_name', 'license_number', 'base_salary', 'commission_rate', 'joining_date']
 
 class TripSerializer(serializers.ModelSerializer):
     class Meta:
