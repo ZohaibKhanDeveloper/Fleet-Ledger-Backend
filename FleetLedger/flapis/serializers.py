@@ -39,10 +39,12 @@ class DriverForTripSerialzer(serializers.ModelSerializer):
 class TripSerializer(serializers.ModelSerializer):
     vehicle = VehicleForTripSerializer(read_only=True)
     driver = DriverForTripSerialzer(read_only=True)
+    driver_id = serializers.PrimaryKeyRelatedField(source='driver',queryset=Driver.objects.all(),write_only=True)
+    vehicle_id = serializers.PrimaryKeyRelatedField(source='vehicle',queryset=Vehicle.objects.all(),write_only=True)
     class Meta:
         model = Trip
         fields = [
             'id', 'vehicle', 'driver', 'origin', 'destination', 
             'start_time', 'end_time', 'revenue', 'fuel_cost', 
-            'toll_fees', 'other_expenses', 'status'
+            'toll_fees', 'other_expenses', 'status','driver_id','vehicle_id'
         ]
