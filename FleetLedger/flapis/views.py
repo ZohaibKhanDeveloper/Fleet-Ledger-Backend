@@ -113,4 +113,55 @@ class DriverDetail(APIView):
         cache.delete_pattern("drivers_page_*")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
-                
+class Trips(APIView):
+
+    def get(self,request):
+        try:
+            page = int(request.GET.get('page'))
+            items = int(request.GET.get('items'))
+        except Exception:
+            page = 1
+            items = 2
+        cache_key = f"trips_page_{page}"    
+        data = cache.get(cache_key)
+        if data is not None:
+            return Response(data,status=HTTP_200_OK) 
+        trips = Trip.objects.all().order_by('-start_time')
+        paginator = Paginator(trips,per_page=items)
+        data = paginator.get_page(page)
+        serializer = TripSerializer(data,many=True)
+        cache.set(cache_key,serializer.data,timeout=120)
+        return Response(serializer.data,status=HTTP_200_OK)  
+
+    def post(self,request):
+        serializer = TripSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            cache.delete_pattern("trips_page_*")
+            return Response(serializer.data,status=HTTP_201_CREATED)
+        return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)  
+
+class TripDetail(APIView):
+
+    def get_object(self,id):
+        return get_object_or_404(Trip,pk=id) 
+
+    def put(self,request,id):
+        trip = self.get_object(id)
+        # if trip is not None:
+        serializer = TripSerializer(trip,data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            cache.delete_pattern("trips_page_*")
+            return Response({
+                    "msg":"Updated Successfully",
+                    "data":serializer.data
+                },status=HTTP_201_CREATED)
+        return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
+
+    def delete(self,request,id):
+        trip = self.get_object(id)    
+        trip.delete()
+        cache.delete_pattern("trips_page_*")
+        return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
+
