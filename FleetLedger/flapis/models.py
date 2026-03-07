@@ -24,7 +24,7 @@ class Driver(models.Model):
     joining_date = models.DateField()
 
     def __str__(self):
-        return self.first_name + " " + self.last_name
+        return self.dr_first_name + " " + self.dr_last_name
 
 class Trip(models.Model):
     STATUS_CHOICES = (
