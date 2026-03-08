@@ -17,14 +17,6 @@ class DriverSerializer(serializers.ModelSerializer):
         model = Driver
         fields = ['id','dr_first_name','dr_last_name', 'license_number', 'base_salary', 'commission_rate', 'joining_date']
 
-class SalaryPayrollSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SalaryPayroll
-        fields = [
-            'id', 'driver', 'month_year', 'trips_completed', 
-            'total_commissions', 'fixed_salary', 'net_payable', 'payment_status'
-        ]
-
 # The Below Serializers class are developed for specific purpose only (Like For Trips)
 class VehicleForTripSerializer(serializers.ModelSerializer):
     class Meta:
@@ -48,3 +40,13 @@ class TripSerializer(serializers.ModelSerializer):
             'start_time', 'end_time', 'revenue', 'fuel_cost', 
             'toll_fees', 'other_expenses', 'status','driver_id','vehicle_id'
         ]
+
+class SalaryPayrollSerializer(serializers.ModelSerializer):
+    driver = DriverForTripSerialzer(read_only=True)
+    driver_id = serializers.PrimaryKeyRelatedField(source='driver',queryset=Driver.objects.all(),write_only=True)
+    class Meta:
+        model = SalaryPayroll
+        fields = [
+            'id', 'driver', 'month_year', 'trips_completed', 
+            'total_commissions', 'fixed_salary', 'net_payable', 'payment_status','driver_id'
+        ]        
