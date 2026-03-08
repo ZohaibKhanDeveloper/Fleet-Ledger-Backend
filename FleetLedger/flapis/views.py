@@ -5,8 +5,50 @@ from django.core.cache import cache
 from rest_framework.response import Response
 from rest_framework.status import HTTP_200_OK,HTTP_201_CREATED,HTTP_400_BAD_REQUEST
 from django.core.paginator import Paginator
+from rest_framework.decorators import api_view
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
+
+@api_view(['GET'])
+def dashboard(request):
+    cache_key = "dashboard_data"
+    dashboard_data = cache.get(cache_key)
+    if dashboard_data is not None:
+        return Response(dashboard_data,status=HTTP_200_OK)
+    total_vehicles = Vehicle.objects.all().count()
+    on_maintenance_vehicles = Vehicle.objects.filter(status="MAINTENANCE").count()
+    drivers = Driver.objects.all()
+    salaries_sum = 0
+    for driver in drivers:
+        salaries_sum += driver.base_salary
+    completed_trips = Trip.objects.filter(status="COMPLETED") 
+    total_revenue = 0
+    total_trips_profit = 0
+    for trip in completed_trips:
+        total_revenue += trip.revenue
+        profit = trip.revenue - (trip.toll_fees + trip.fuel_cost + trip.other_expenses)
+        total_trips_profit += profit - (trip.driver.commission_rate * profit)
+    cancelled_trips = Trip.objects.filter(status="CANCELLED").count()
+    ongoing_trips = Trip.objects.filter(status="ONGOING").count()
+    planned_trips = Trip.objects.filter(status="PLANNED").count()
+    pending_salaries = SalaryPayroll.objects.filter(payment_status="PENDING").count()
+    paid_salaries = SalaryPayroll.objects.filter(payment_status="PAID").count()
+    dashboard_data = {
+        "total_revenue":total_revenue,
+        "total_trips_profit":total_trips_profit,
+        "total_vehicles":total_vehicles,
+        "on_maintenance_vehicles":on_maintenance_vehicles,
+        "total_drivers":drivers.count(),
+        "driver_salaries_sum":salaries_sum,
+        "completed_trips":completed_trips.count(),
+        "ongoing_trips":ongoing_trips,
+        "planned_trips":planned_trips,
+        "cancelled_trips":cancelled_trips,
+        "pending_salaries":pending_salaries,
+        "paid_salaries":paid_salaries
+    }
+    cache.set(cache_key,dashboard_data,timeout=300)
+    return Response(dashboard_data,status=HTTP_200_OK)
 
 class Vehicles(APIView):
 
@@ -35,6 +77,7 @@ class Vehicles(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("vehicles_page_*")
+            cache.delete("dashboard_data")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
 
@@ -49,6 +92,7 @@ class VehicleDetail(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("vehicles_page_*")
+            cache.delete("dashboard_data")
             return Response({
                 "msg":"Updated Successfully",
                 "data":serializer.data
@@ -60,6 +104,7 @@ class VehicleDetail(APIView):
         if vehicle is not None:
             vehicle.delete()
             cache.delete_pattern("vehicles_page_*")
+            cache.delete("dashboard_data")
             return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Drivers(APIView):
@@ -88,6 +133,7 @@ class Drivers(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("drivers_page_*")
+            cache.delete("dashboard_data")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
     
@@ -102,6 +148,7 @@ class DriverDetail(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("drivers_page_*")
+            cache.delete("dashboard_data")
             return Response({
                 "msg":"Updated Successfully",
                 "data":serializer.data
@@ -112,6 +159,7 @@ class DriverDetail(APIView):
         driver = self.get_object(id=id)
         driver.delete()
         cache.delete_pattern("drivers_page_*")
+        cache.delete("dashboard_data")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Trips(APIView):
@@ -139,6 +187,7 @@ class Trips(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("trips_page_*")
+            cache.delete("dashboard_data")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)  
 
@@ -154,6 +203,7 @@ class TripDetail(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("trips_page_*")
+            cache.delete("dashboard_data")
             return Response({
                     "msg":"Updated Successfully",
                     "data":serializer.data
@@ -164,6 +214,7 @@ class TripDetail(APIView):
         trip = self.get_object(id)    
         trip.delete()
         cache.delete_pattern("trips_page_*")
+        cache.delete("dashboard_data")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Payrolls(APIView):
@@ -211,6 +262,7 @@ class Payrolls(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("payrolls_page_*")
+            cache.delete("dashboard_data")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
 
@@ -227,6 +279,7 @@ class PayrollDetail(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("payrolls_page_*")
+            cache.delete("dashboard_data")
             return Response({
                     "msg":"Updated Successfully",
                     "data":serializer.data
@@ -237,4 +290,5 @@ class PayrollDetail(APIView):
         payroll = self.get_object(id)    
         payroll.delete()
         cache.delete_pattern("payrolls_page_*")
+        cache.delete("dashboard_data")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
