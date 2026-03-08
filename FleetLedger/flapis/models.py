@@ -3,7 +3,6 @@ from django.db import models
 class Vehicle(models.Model):
     STATUS_CHOICES = (
         ('AVAILABLE', 'Available'),
-        ('ON TRIP', 'On Trip'),
         ('MAINTENANCE', 'Maintenance'),
     )
     vin = models.CharField(max_length=17, unique=True)
