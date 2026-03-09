@@ -78,6 +78,7 @@ class Vehicles(APIView):
             serializer.save()
             cache.delete_pattern("vehicles_page_*")
             cache.delete("dashboard_data")
+            cache.delete("driver_vehicle_options")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
 
@@ -93,6 +94,7 @@ class VehicleDetail(APIView):
             serializer.save()
             cache.delete_pattern("vehicles_page_*")
             cache.delete("dashboard_data")
+            cache.delete("driver_vehicle_options")
             return Response({
                 "msg":"Updated Successfully",
                 "data":serializer.data
@@ -105,6 +107,7 @@ class VehicleDetail(APIView):
             vehicle.delete()
             cache.delete_pattern("vehicles_page_*")
             cache.delete("dashboard_data")
+            cache.delete("driver_vehicle_options")
             return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Drivers(APIView):
@@ -134,6 +137,7 @@ class Drivers(APIView):
             serializer.save()
             cache.delete_pattern("drivers_page_*")
             cache.delete("dashboard_data")
+            cache.delete("driver_vehicle_options")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
     
@@ -149,6 +153,7 @@ class DriverDetail(APIView):
             serializer.save()
             cache.delete_pattern("drivers_page_*")
             cache.delete("dashboard_data")
+            cache.delete("driver_vehicle_options")
             return Response({
                 "msg":"Updated Successfully",
                 "data":serializer.data
@@ -160,6 +165,7 @@ class DriverDetail(APIView):
         driver.delete()
         cache.delete_pattern("drivers_page_*")
         cache.delete("dashboard_data")
+        cache.delete("driver_vehicle_options")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Trips(APIView):
@@ -242,7 +248,7 @@ class Payrolls(APIView):
         year = request.data["year"]
         payroll = SalaryPayroll.objects.filter(driver=request.data["driver_id"],month_year__month=month,month_year__year=year).exists()
         if payroll:
-            return Response({"msg":"Driver Detail Already exists."},status=HTTP_400_BAD_REQUEST)
+            return Response({"msg":"Driver Detail already exists."},status=HTTP_400_BAD_REQUEST)
         driver = Driver.objects.get(pk=request.data["driver_id"])
         request.data["fixed_salary"] = driver.base_salary
         request.data["month_year"] = f"{year}-{month}-28"
@@ -292,3 +298,22 @@ class PayrollDetail(APIView):
         cache.delete_pattern("payrolls_page_*")
         cache.delete("dashboard_data")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
+    
+@api_view(['GET'])
+def vehicle_driver_options(request):
+    cache_key = "driver_vehicle_options"
+    options = cache.get(cache_key)
+    if options is not None:
+        return Response(options,status=HTTP_200_OK)
+    drivers = Driver.objects.all()
+    vehicles = Vehicle.objects.filter(status="AVAILABLE")
+    vehicles_options = VehicleForTripSerializer(vehicles,many=True)
+    drivers_options = DriverForTripSerialzer(drivers,many=True)
+    options = {
+        "vehicles":vehicles_options.data,
+        "drivers":drivers_options.data
+    }
+    cache.set(cache_key,options,timeout=300)
+    return Response(options,status=HTTP_200_OK)
+    
+        
