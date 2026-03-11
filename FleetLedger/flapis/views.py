@@ -8,44 +8,67 @@ from django.core.paginator import Paginator
 from rest_framework.decorators import api_view
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
+from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper, Q
+from datetime import datetime
 
 @api_view(['GET'])
 def dashboard(request):
-    cache_key = "dashboard_data"
+    month = request.GET.get("month")
+    year = request.GET.get("year")
+    if not year or not month:
+        now = datetime.now()
+        month = request.GET.get("month", now.month)
+        year = request.GET.get("year", now.year)
+    cache_key = f"dashboard_data_{month}_{year}"
     dashboard_data = cache.get(cache_key)
     if dashboard_data is not None:
         return Response(dashboard_data,status=HTTP_200_OK)
-    total_vehicles = Vehicle.objects.all().count()
-    on_maintenance_vehicles = Vehicle.objects.filter(status="MAINTENANCE").count()
-    drivers = Driver.objects.all()
-    salaries_sum = 0
-    for driver in drivers:
-        salaries_sum += driver.base_salary
-    completed_trips = Trip.objects.filter(status="COMPLETED") 
-    total_revenue = 0
-    total_trips_profit = 0
-    for trip in completed_trips:
-        total_revenue += trip.revenue
-        profit = trip.revenue - (trip.toll_fees + trip.fuel_cost + trip.other_expenses)
-        total_trips_profit += profit - (trip.driver.commission_rate * profit)
-    cancelled_trips = Trip.objects.filter(status="CANCELLED").count()
-    ongoing_trips = Trip.objects.filter(status="ONGOING").count()
-    planned_trips = Trip.objects.filter(status="PLANNED").count()
-    pending_salaries = SalaryPayroll.objects.filter(payment_status="PENDING").count()
-    paid_salaries = SalaryPayroll.objects.filter(payment_status="PAID").count()
+    vehicle_stats = Vehicle.objects.aggregate(
+        total=Count('id'),
+        on_maintenance = Count('id',filter=Q(status="MAINTENANCE"))
+    )
+    drivers_stats = Driver.objects.aggregate(total=Sum('base_salary'),total_drivers=Count('id'))
+    trips_stats = Trip.objects.aggregate(
+        completed = Count('id',filter=Q(status="COMPLETED",start_time__month=month,start_time__year=year)),
+        cancelled = Count('id',filter=Q(status="CANCELLED",start_time__month=month,start_time__year=year)),
+        planned = Count('id',filter=Q(status="PLANNED",start_time__month=month,start_time__year=year)),
+        ongoing=Count('id',filter=Q(status='ONGOING',start_time__month=month,start_time__year=year)),
+    )
+    payroll_stats = SalaryPayroll.objects.aggregate(
+        pending=Sum('net_payable',filter=Q(payment_status="PENDING",month_year__month=month,month_year__year=year)),
+        paid=Sum('net_payable',filter=Q(payment_status="PAID",month_year__month=month,month_year__year=year)),
+        pending_salary_count = Count('id',filter=Q(payment_status="PENDING",month_year__month=month,month_year__year=year)),
+        paid_salary_count = Count('id',filter=Q(payment_status="PAID",month_year__month=month,month_year__year=year))
+    )
+    profit_loss_stats = Trip.objects.filter(status="COMPLETED",start_time__month=month,start_time__year=year).annotate(
+        trip_profit = ExpressionWrapper(
+            F('revenue') - (F('toll_fees') + F('fuel_cost') + F('other_expenses')),
+            output_field=FloatField()
+        )
+    ).annotate(
+        after_commission = ExpressionWrapper(
+            F('trip_profit') - F('driver__commission_rate') * F('trip_profit'),
+            output_field=FloatField()
+        )
+    ).aggregate(
+        total_revenue=Sum('revenue'),
+        total_profit = Sum('after_commission')
+    )
     dashboard_data = {
-        "total_revenue":total_revenue,
-        "total_trips_profit":total_trips_profit,
-        "total_vehicles":total_vehicles,
-        "on_maintenance_vehicles":on_maintenance_vehicles,
-        "total_drivers":drivers.count(),
-        "driver_salaries_sum":salaries_sum,
-        "completed_trips":completed_trips.count(),
-        "ongoing_trips":ongoing_trips,
-        "planned_trips":planned_trips,
-        "cancelled_trips":cancelled_trips,
-        "pending_salaries":pending_salaries,
-        "paid_salaries":paid_salaries
+        "total_trips_revenue":profit_loss_stats['total_revenue'] or 0,
+        "total_trips_profit":profit_loss_stats['total_profit'] or 0,
+        "total_vehicles":vehicle_stats['total'],
+        "on_maintenance_vehicles":vehicle_stats['on_maintenance'],
+        "total_drivers":drivers_stats['total_drivers'],
+        "base_salaries_sum":drivers_stats['total'] or 0,
+        "completed_trips":trips_stats['completed'],
+        "ongoing_trips":trips_stats['ongoing'],
+        "planned_trips":trips_stats['planned'],
+        "cancelled_trips":trips_stats['cancelled'],
+        "pending_salary_count":payroll_stats['pending_salary_count'],
+        "paid_salary_count":payroll_stats['paid_salary_count'],
+        "pending_salaries":payroll_stats['pending'] or 0,
+        "paid_salaries":payroll_stats['paid'] or 0
     }
     cache.set(cache_key,dashboard_data,timeout=300)
     return Response(dashboard_data,status=HTTP_200_OK)
@@ -77,7 +100,7 @@ class Vehicles(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("vehicles_page_*")
-            cache.delete("dashboard_data")
+            cache.delete_pattern("dashboard_data_*_*")
             cache.delete("driver_vehicle_options")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
@@ -93,7 +116,7 @@ class VehicleDetail(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("vehicles_page_*")
-            cache.delete("dashboard_data")
+            cache.delete_pattern("dashboard_data_*_*")
             cache.delete("driver_vehicle_options")
             return Response({
                 "msg":"Updated Successfully",
@@ -106,7 +129,7 @@ class VehicleDetail(APIView):
         if vehicle is not None:
             vehicle.delete()
             cache.delete_pattern("vehicles_page_*")
-            cache.delete("dashboard_data")
+            cache.delete_pattern("dashboard_data_*_*")
             cache.delete("driver_vehicle_options")
             return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
@@ -136,7 +159,7 @@ class Drivers(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("drivers_page_*")
-            cache.delete("dashboard_data")
+            cache.delete_pattern("dashboard_data_*_*")
             cache.delete("driver_vehicle_options")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
@@ -152,7 +175,7 @@ class DriverDetail(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("drivers_page_*")
-            cache.delete("dashboard_data")
+            cache.delete_pattern("dashboard_data_*_*")
             cache.delete("driver_vehicle_options")
             return Response({
                 "msg":"Updated Successfully",
@@ -164,7 +187,7 @@ class DriverDetail(APIView):
         driver = self.get_object(id=id)
         driver.delete()
         cache.delete_pattern("drivers_page_*")
-        cache.delete("dashboard_data")
+        cache.delete_pattern("dashboard_data_*_*")
         cache.delete("driver_vehicle_options")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
@@ -193,7 +216,7 @@ class Trips(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("trips_page_*")
-            cache.delete("dashboard_data")
+            cache.delete_pattern("dashboard_data_*_*")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)  
 
@@ -209,7 +232,7 @@ class TripDetail(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("trips_page_*")
-            cache.delete("dashboard_data")
+            cache.delete_pattern("dashboard_data_*_*")
             return Response({
                     "msg":"Updated Successfully",
                     "data":serializer.data
@@ -220,7 +243,7 @@ class TripDetail(APIView):
         trip = self.get_object(id)    
         trip.delete()
         cache.delete_pattern("trips_page_*")
-        cache.delete("dashboard_data")
+        cache.delete_pattern("dashboard_data_*_*")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Payrolls(APIView):
@@ -268,7 +291,7 @@ class Payrolls(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("payrolls_page_*")
-            cache.delete("dashboard_data")
+            cache.delete_pattern("dashboard_data_*_*")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
 
@@ -285,7 +308,7 @@ class PayrollDetail(APIView):
         if serializer.is_valid():
             serializer.save()
             cache.delete_pattern("payrolls_page_*")
-            cache.delete("dashboard_data")
+            cache.delete_pattern("dashboard_data_*_*")
             return Response({
                     "msg":"Updated Successfully",
                     "data":serializer.data
@@ -296,7 +319,7 @@ class PayrollDetail(APIView):
         payroll = self.get_object(id)    
         payroll.delete()
         cache.delete_pattern("payrolls_page_*")
-        cache.delete("dashboard_data")
+        cache.delete_pattern("dashboard_data_*_*")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
     
 @api_view(['GET'])
