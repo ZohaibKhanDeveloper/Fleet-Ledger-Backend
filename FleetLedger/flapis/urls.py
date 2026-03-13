@@ -11,4 +11,5 @@ urlpatterns = [
     path('payrolls/',views.Payrolls.as_view()),
     path('payroll/<int:id>/',views.PayrollDetail.as_view()),
     path('driver/vehicle/options/',views.vehicle_driver_options),
+    path('trip/detail/report/',views.detail_trips_report),
 ]
