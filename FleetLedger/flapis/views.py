@@ -217,6 +217,7 @@ class Trips(APIView):
             serializer.save()
             cache.delete_pattern("trips_page_*")
             cache.delete_pattern("dashboard_data_*_*")
+            cache.delete_pattern("trip_detail_report_*_*")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)  
 
@@ -233,6 +234,7 @@ class TripDetail(APIView):
             serializer.save()
             cache.delete_pattern("trips_page_*")
             cache.delete_pattern("dashboard_data_*_*")
+            cache.delete_pattern("trip_detail_report_*_*")
             return Response({
                     "msg":"Updated Successfully",
                     "data":serializer.data
@@ -244,6 +246,7 @@ class TripDetail(APIView):
         trip.delete()
         cache.delete_pattern("trips_page_*")
         cache.delete_pattern("dashboard_data_*_*")
+        cache.delete_pattern("trip_detail_report_*_*")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Payrolls(APIView):
@@ -274,7 +277,7 @@ class Payrolls(APIView):
             return Response({"msg":"Driver Detail already exists."},status=HTTP_400_BAD_REQUEST)
         driver = Driver.objects.get(pk=request.data["driver_id"])
         request.data["fixed_salary"] = driver.base_salary
-        request.data["month_year"] = f"{year}-{month}-28"
+        request.data["month_year"] = f"{year}-{month}-{datetime.now().day}"
         trips = Trip.objects.filter(driver=request.data["driver_id"],status="COMPLETED",start_time__year=year,start_time__month=month)
         request.data["trips_completed"] = trips.count()
         total_commission = Decimal('0.00')
@@ -339,4 +342,20 @@ def vehicle_driver_options(request):
     cache.set(cache_key,options,timeout=300)
     return Response(options,status=HTTP_200_OK)
     
-        
+@api_view(['GET'])
+def detail_trips_report(request):
+    month = request.GET.get('month')
+    year = request.GET.get('year')
+    if not year or not month:
+        month = datetime.now().month
+        year = datetime.now().year
+    cache_key = f"trip_detail_report_{month}_{year}"
+    data = cache.get(cache_key)
+    if data is not None:
+        return Response(data,status=HTTP_200_OK)
+    trips = Trip.objects.filter(start_time__year=year,start_time__month=month)
+    serializer = TripDetailReportSerializer(trips,many=True)
+    cache.set(cache_key,serializer.data,timeout=300)
+    return Response(serializer.data,status=HTTP_200_OK)   
+
+ 
