@@ -49,4 +49,25 @@ class SalaryPayrollSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'driver', 'month_year', 'trips_completed', 
             'total_commissions', 'fixed_salary', 'net_payable', 'payment_status','driver_id'
-        ]        
+        ]   
+
+class VehicleForTripReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vehicle
+        fields = ['plate_number']
+
+class DriverForTripReportSerialzer(serializers.ModelSerializer):
+    class Meta:
+        model = Driver
+        fields = ['dr_first_name','dr_last_name'] 
+
+class TripDetailReportSerializer(serializers.ModelSerializer):
+    driver = DriverForTripReportSerialzer(read_only=True)
+    vehicle = VehicleForTripReportSerializer(read_only=True)
+    class Meta:
+        model = Trip
+        fields = [
+            'vehicle', 'driver', 'origin', 'destination', 
+            'start_time', 'end_time', 'revenue', 'fuel_cost', 
+            'toll_fees', 'other_expenses', 'status'
+        ]
