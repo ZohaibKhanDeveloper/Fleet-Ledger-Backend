@@ -8,8 +8,9 @@ from django.core.paginator import Paginator
 from rest_framework.decorators import api_view
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
-from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper, Q
+from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper, Q, DecimalField
 from datetime import datetime
+import calendar
 
 @api_view(['GET'])
 def dashboard(request):
@@ -358,4 +359,39 @@ def detail_trips_report(request):
     cache.set(cache_key,serializer.data,timeout=300)
     return Response(serializer.data,status=HTTP_200_OK)   
 
- 
+
+@api_view(['GET'])
+def summarized_driver_report(request,id):
+    try:
+        month = int(request.GET.get('month'))
+        year = int(request.GET.get('year'))
+    except:
+        month = datetime.now().month
+        year = datetime.now().year        
+    cache_key = f"summarized_driver_{id}_report_{month}_{year}"
+    data = cache.get(cache_key)
+    if data is not None:
+        return Response(data,status=HTTP_200_OK) 
+    driver = get_object_or_404(Driver,pk=id)
+    driver_serializer = DriverSerializer(driver)
+    report = Trip.objects.filter(driver=id,status="COMPLETED",start_time__month=month,start_time__year=year).annotate(
+        commissions = ExpressionWrapper(
+            (F('revenue') - (F('fuel_cost') + F('toll_fees') + F('other_expenses'))) * Decimal(str(driver.commission_rate)),
+            output_field=DecimalField(max_digits=10, decimal_places=2)
+        )
+    ).aggregate(
+        total_commission = Sum('commissions'),
+        total_trips_completed = Count('id')
+    )
+    now = datetime.now()
+    final_report = {
+            "driver_detail":driver_serializer.data,
+            "total_trips_completed":report["total_trips_completed"] or 0,
+            "total_commmission":report["total_commission"] or Decimal('0.00'),
+            "net_payable":driver.base_salary + (report["total_commission"] or Decimal('0.00')),
+            "report_created_for":f"{calendar.month_name[month]} {year}",
+            "report_creation_time":now.strftime("%H:%M:%S %p"),
+            "report_creation_date":now.strftime("%d-%m-%Y")
+        }
+    cache.set(cache_key,final_report,timeout=300)
+    return Response(final_report,status=HTTP_200_OK)
