@@ -59,7 +59,7 @@ class VehicleForTripReportSerializer(serializers.ModelSerializer):
 class DriverForTripReportSerialzer(serializers.ModelSerializer):
     class Meta:
         model = Driver
-        fields = ['dr_first_name','dr_last_name'] 
+        fields = ['dr_first_name','dr_last_name','commission_rate'] 
 
 class TripDetailReportSerializer(serializers.ModelSerializer):
     driver = DriverForTripReportSerialzer(read_only=True)
