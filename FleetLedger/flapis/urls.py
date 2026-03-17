@@ -14,4 +14,6 @@ urlpatterns = [
     path('trip/detail/report/',views.detail_trips_report),
     path('driver/<int:id>/report/',views.summarized_driver_report),
     path('driver/<int:id>/trips/report/',views.detail_driver_trips_report),
+    path('payrolls/report/',views.payrolls_report),
+    path('vehicles/report/',views.vehicles_report),
 ]
