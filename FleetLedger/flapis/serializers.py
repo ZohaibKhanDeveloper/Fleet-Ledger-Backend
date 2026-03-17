@@ -15,18 +15,21 @@ class VehicleSerializer(serializers.ModelSerializer):
 class DriverSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
-        fields = ['id','dr_first_name','dr_last_name', 'license_number', 'base_salary', 'commission_rate', 'joining_date']
+        fields = ['id','dr_first_name','dr_last_name', 'license_number', 'base_salary', 'commission_rate', 'joining_date']  
 
 # The Below Serializers class are developed for specific purpose only (Like For Trips)
 class VehicleForTripSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vehicle
-        fields = ['id','plate_number']
+        fields = ['plate_number']
 
 class DriverForTripSerialzer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
     class Meta:
         model = Driver
-        fields = ['id','dr_first_name','dr_last_name']                
+        fields = ['name']
+    def get_name(self,obj):
+        return (obj.dr_first_name+" "+obj.dr_last_name)
 
 class TripSerializer(serializers.ModelSerializer):
     vehicle = VehicleForTripSerializer(read_only=True)
@@ -57,9 +60,14 @@ class VehicleForTripReportSerializer(serializers.ModelSerializer):
         fields = ['plate_number']
 
 class DriverForTripReportSerialzer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
     class Meta:
         model = Driver
-        fields = ['dr_first_name','dr_last_name','commission_rate'] 
+        fields = ['name','commission_rate'] 
+    def get_name(self,obj):
+        if obj.dr_first_name and obj.dr_last_name:
+            return (obj.dr_first_name+" "+obj.dr_last_name)
+        return None    
 
 class TripDetailReportSerializer(serializers.ModelSerializer):
     driver = DriverForTripReportSerialzer(read_only=True)
@@ -71,3 +79,18 @@ class TripDetailReportSerializer(serializers.ModelSerializer):
             'start_time', 'end_time', 'revenue', 'fuel_cost', 
             'toll_fees', 'other_expenses', 'status'
         ]
+
+class DriverTripsListReportSerializer(serializers.ModelSerializer):
+    vehicle = VehicleForTripReportSerializer(read_only=True)
+    start_time = serializers.SerializerMethodField()
+    class Meta:
+        model = Trip
+        fields = [
+            'vehicle', 'origin', 'destination', 
+            'start_time', 'revenue', 'fuel_cost', 
+            'toll_fees', 'other_expenses'
+        ]
+    def get_start_time(self,obj):
+        if obj.start_time:
+            return obj.start_time.strftime("%d-%m-%Y %H:%M:%S %p")
+        return None    
