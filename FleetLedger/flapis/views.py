@@ -162,6 +162,7 @@ class Drivers(APIView):
             cache.delete_pattern("drivers_page_*")
             cache.delete_pattern("dashboard_data_*_*")
             cache.delete("driver_vehicle_options")
+            cache.delete_pattern("detail_driver_trips_*_report_*_*")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
     
@@ -178,6 +179,7 @@ class DriverDetail(APIView):
             cache.delete_pattern("drivers_page_*")
             cache.delete_pattern("dashboard_data_*_*")
             cache.delete("driver_vehicle_options")
+            cache.delete_pattern("detail_driver_trips_*_report_*_*")
             return Response({
                 "msg":"Updated Successfully",
                 "data":serializer.data
@@ -190,6 +192,7 @@ class DriverDetail(APIView):
         cache.delete_pattern("drivers_page_*")
         cache.delete_pattern("dashboard_data_*_*")
         cache.delete("driver_vehicle_options")
+        cache.delete_pattern("detail_driver_trips_*_report_*_*")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Trips(APIView):
@@ -219,6 +222,7 @@ class Trips(APIView):
             cache.delete_pattern("trips_page_*")
             cache.delete_pattern("dashboard_data_*_*")
             cache.delete_pattern("trip_detail_report_*_*")
+            cache.delete_pattern("detail_driver_trips_*_report_*_*")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)  
 
@@ -236,6 +240,7 @@ class TripDetail(APIView):
             cache.delete_pattern("trips_page_*")
             cache.delete_pattern("dashboard_data_*_*")
             cache.delete_pattern("trip_detail_report_*_*")
+            cache.delete_pattern("detail_driver_trips_*_report_*_*")
             return Response({
                     "msg":"Updated Successfully",
                     "data":serializer.data
@@ -248,6 +253,7 @@ class TripDetail(APIView):
         cache.delete_pattern("trips_page_*")
         cache.delete_pattern("dashboard_data_*_*")
         cache.delete_pattern("trip_detail_report_*_*")
+        cache.delete_pattern("detail_driver_trips_*_report_*_*")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Payrolls(APIView):
@@ -395,3 +401,30 @@ def summarized_driver_report(request,id):
         }
     cache.set(cache_key,final_report,timeout=300)
     return Response(final_report,status=HTTP_200_OK)
+
+@api_view(['GET'])
+def detail_driver_trips_report(request,id):
+    try:
+        month = int(request.GET.get('month'))
+        year = int(request.GET.get('year'))
+    except:
+        month = datetime.now().month
+        year = datetime.now().year        
+    cache_key = f"detail_driver_trips_{id}_report_{month}_{year}"
+    data = cache.get(cache_key)
+    if data is not None:
+        return Response(data,status=HTTP_200_OK) 
+    driver = Driver.objects.get(pk=id)
+    driver_serializer = DriverSerializer(driver)
+    trips_by_driver = Trip.objects.filter(driver=id,status="COMPLETED",start_time__month=month,start_time__year=year)
+    trips_serializer = DriverTripsListReportSerializer(trips_by_driver,many=True)
+    now = datetime.now()
+    report = {
+        "driver":driver_serializer.data,
+        "report_created_for":f"{calendar.month_name[month]} {year}",
+        "report_creation_time":now.strftime("%H:%M:%S %p"),
+        "report_creation_date":now.strftime("%d-%m-%Y"),
+        "trips_list":trips_serializer.data
+    }
+    cache.set(cache_key,report,timeout=300)
+    return Response(report,status=HTTP_200_OK)
