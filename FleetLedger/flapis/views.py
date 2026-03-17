@@ -103,6 +103,7 @@ class Vehicles(APIView):
             cache.delete_pattern("vehicles_page_*")
             cache.delete_pattern("dashboard_data_*_*")
             cache.delete("driver_vehicle_options")
+            cache.delete("vehicles_report")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
 
@@ -119,6 +120,7 @@ class VehicleDetail(APIView):
             cache.delete_pattern("vehicles_page_*")
             cache.delete_pattern("dashboard_data_*_*")
             cache.delete("driver_vehicle_options")
+            cache.delete("vehicles_report")
             return Response({
                 "msg":"Updated Successfully",
                 "data":serializer.data
@@ -132,6 +134,7 @@ class VehicleDetail(APIView):
             cache.delete_pattern("vehicles_page_*")
             cache.delete_pattern("dashboard_data_*_*")
             cache.delete("driver_vehicle_options")
+            cache.delete("vehicles_report")
             return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Drivers(APIView):
@@ -302,6 +305,7 @@ class Payrolls(APIView):
             serializer.save()
             cache.delete_pattern("payrolls_page_*")
             cache.delete_pattern("dashboard_data_*_*")
+            cache.delete_pattern("detail_driver_payrolls_report_*_*")
             return Response(serializer.data,status=HTTP_201_CREATED)
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
 
@@ -319,6 +323,7 @@ class PayrollDetail(APIView):
             serializer.save()
             cache.delete_pattern("payrolls_page_*")
             cache.delete_pattern("dashboard_data_*_*")
+            cache.delete_pattern("detail_driver_payrolls_report_*_*")
             return Response({
                     "msg":"Updated Successfully",
                     "data":serializer.data
@@ -330,6 +335,7 @@ class PayrollDetail(APIView):
         payroll.delete()
         cache.delete_pattern("payrolls_page_*")
         cache.delete_pattern("dashboard_data_*_*")
+        cache.delete_pattern("detail_driver_payrolls_report_*_*")
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
     
 @api_view(['GET'])
@@ -425,6 +431,55 @@ def detail_driver_trips_report(request,id):
         "report_creation_time":now.strftime("%H:%M:%S %p"),
         "report_creation_date":now.strftime("%d-%m-%Y"),
         "trips_list":trips_serializer.data
+    }
+    cache.set(cache_key,report,timeout=300)
+    return Response(report,status=HTTP_200_OK)
+
+@api_view(['GET'])
+def payrolls_report(request):
+    try:
+        month = int(request.GET.get('month'))
+        year = int(request.GET.get('year'))
+    except:
+        month = datetime.now().month
+        year = datetime.now().year        
+    cache_key = f"detail_driver_payrolls_report_{month}_{year}"
+    data = cache.get(cache_key)
+    if data is not None:
+        return Response(data,status=HTTP_200_OK)
+    payrolls = SalaryPayroll.objects.filter(month_year__month=month,month_year__year=year)
+    serializer = SalaryPayrollSerializer(payrolls,many=True)
+    now = datetime.now()
+    report = {
+        "report_created_for":f"{calendar.month_name[month]} {year}",
+        "report_creation_time":now.strftime("%H:%M:%S %p"),
+        "report_creation_date":now.strftime("%d-%m-%Y"),
+        "payrolls":serializer.data
+    }
+    cache.set(cache_key,report,timeout=300) 
+    return Response(report,status=HTTP_200_OK)
+
+@api_view(['GET'])
+def vehicles_report(request):       
+    cache_key = f"vehicles_report"
+    data = cache.get(cache_key)
+    if data is not None:
+        return Response(data,status=HTTP_200_OK)
+    vehicles = Vehicle.objects.all()
+    serializer = VehicleSerializer(vehicles,many=True)
+    vehicles_stats = vehicles.aggregate(
+        available = Count('id',filter=Q(status='AVAILABLE')),
+        on_maintenance = Count('id',filter=Q(status='MAINTENANCE')),
+        total=Count('id')
+    )
+    now = datetime.now()
+    report = {
+        "report_creation_time":now.strftime("%H:%M:%S %p"),
+        "report_creation_date":now.strftime("%d-%m-%Y"),
+        "total_vehicles":vehicles_stats["total"],
+        "available_vehicles":vehicles_stats["available"],
+        "on_maintenance_vehicles":vehicles_stats["on_maintenance"],
+        "vehicles":serializer.data
     }
     cache.set(cache_key,report,timeout=300)
     return Response(report,status=HTTP_200_OK)
