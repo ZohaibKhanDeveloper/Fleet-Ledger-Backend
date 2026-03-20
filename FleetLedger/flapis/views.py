@@ -5,14 +5,16 @@ from django.core.cache import cache
 from rest_framework.response import Response
 from rest_framework.status import HTTP_200_OK,HTTP_201_CREATED,HTTP_400_BAD_REQUEST
 from django.core.paginator import Paginator
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view,permission_classes
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
 from django.db.models import Sum, Count, F, FloatField, ExpressionWrapper, Q, DecimalField
 from datetime import datetime
 import calendar
+from rest_framework.permissions import IsAdminUser
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser])
 def dashboard(request):
     month = request.GET.get("month")
     year = request.GET.get("year")
@@ -75,6 +77,7 @@ def dashboard(request):
     return Response(dashboard_data,status=HTTP_200_OK)
 
 class Vehicles(APIView):
+    permission_classes = [IsAdminUser]
 
     def get(self,request):
         try:
@@ -108,6 +111,7 @@ class Vehicles(APIView):
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
 
 class VehicleDetail(APIView):
+    permission_classes = [IsAdminUser]
 
     def get_vehicle(self,id):
         return get_object_or_404(Vehicle,pk=id)  
@@ -138,6 +142,7 @@ class VehicleDetail(APIView):
             return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Drivers(APIView):
+    permission_classes = [IsAdminUser]
 
     def get(self,request):
         try:
@@ -170,6 +175,7 @@ class Drivers(APIView):
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
     
 class DriverDetail(APIView):
+    permission_classes = [IsAdminUser]
 
     def get_object(self,id):
         return get_object_or_404(Driver,pk=id)
@@ -199,6 +205,7 @@ class DriverDetail(APIView):
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Trips(APIView):
+    permission_classes = [IsAdminUser]
 
     def get(self,request):
         try:
@@ -230,6 +237,7 @@ class Trips(APIView):
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)  
 
 class TripDetail(APIView):
+    permission_classes = [IsAdminUser]
 
     def get_object(self,id):
         return get_object_or_404(Trip,pk=id) 
@@ -260,6 +268,7 @@ class TripDetail(APIView):
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
 
 class Payrolls(APIView):
+    permission_classes = [IsAdminUser]
 
     def get(self,request):
         try:
@@ -310,6 +319,7 @@ class Payrolls(APIView):
         return Response(serializer.errors,status=HTTP_400_BAD_REQUEST)
 
 class PayrollDetail(APIView):
+    permission_classes = [IsAdminUser]
 
     def get_object(self,id):
         return get_object_or_404(SalaryPayroll,pk=id) 
@@ -339,6 +349,7 @@ class PayrollDetail(APIView):
         return Response({"msg":"Deleted Successfully"},status=HTTP_200_OK)
     
 @api_view(['GET'])
+@permission_classes([IsAdminUser])
 def vehicle_driver_options(request):
     cache_key = "driver_vehicle_options"
     options = cache.get(cache_key)
@@ -356,6 +367,7 @@ def vehicle_driver_options(request):
     return Response(options,status=HTTP_200_OK)
     
 @api_view(['GET'])
+@permission_classes([IsAdminUser])
 def detail_trips_report(request):
     month = request.GET.get('month')
     year = request.GET.get('year')
@@ -373,6 +385,7 @@ def detail_trips_report(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser])
 def summarized_driver_report(request,id):
     try:
         month = int(request.GET.get('month'))
@@ -409,6 +422,7 @@ def summarized_driver_report(request,id):
     return Response(final_report,status=HTTP_200_OK)
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser])
 def detail_driver_trips_report(request,id):
     try:
         month = int(request.GET.get('month'))
@@ -436,6 +450,7 @@ def detail_driver_trips_report(request,id):
     return Response(report,status=HTTP_200_OK)
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser])
 def payrolls_report(request):
     try:
         month = int(request.GET.get('month'))
@@ -460,6 +475,7 @@ def payrolls_report(request):
     return Response(report,status=HTTP_200_OK)
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser])
 def vehicles_report(request):       
     cache_key = f"vehicles_report"
     data = cache.get(cache_key)
